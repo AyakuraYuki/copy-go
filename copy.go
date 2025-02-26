@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -127,8 +128,124 @@ func fcopy(src, dst string, info os.FileInfo, opt Options) (err error) {
 	return err
 }
 
-func dcopy(src, dst string, info os.FileInfo, opt Options) (err error) {
+// dcopy is for a directory,
+// with scanning contents inside the directory and pass everything to "copy" recursively.
+func dcopy(srcdir, dstdir string, info os.FileInfo, opt Options) (err error) {
+	if skip, err := onDirExists(srcdir, dstdir, opt); err != nil {
+		return err
+	} else if skip {
+		return nil
+	}
 
+	// make dst dir with perm 0755 so that everything writable
+	chmodfunc, err := opt.PermissionControl(info, dstdir)
+	if err != nil {
+		return err
+	}
+	defer chmodfunc(&err)
+
+	var entries []fs.DirEntry
+	if opt.FS != nil {
+		entries, err = fs.ReadDir(opt.FS, srcdir)
+		if err != nil {
+			return err
+		}
+	} else {
+		entries, err = os.ReadDir(srcdir)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil // ignore non-exist dir
+			}
+			return err
+		}
+	}
+
+	contents := make([]fs.FileInfo, 0, len(entries))
+	for _, e := range entries {
+		info, err := e.Info()
+		if err != nil {
+			return err
+		}
+		contents = append(contents, info)
+	}
+
+	if yes, err := shouldCopyDirectoryConcurrent(srcdir, dstdir, opt); err != nil {
+		return err
+	} else if yes {
+		if err := dcopyConcurrent(srcdir, dstdir, contents, opt); err != nil {
+			return err
+		}
+	} else {
+		if err := dcopySequential(srcdir, dstdir, contents, opt); err != nil {
+			return err
+		}
+	}
+
+	if opt.PreserveOwner {
+		if err := preserveOwner(srcdir, dstdir, info); err != nil {
+			return err
+		}
+	}
+
+	if opt.PreserveTimes {
+		if err := preserveTimes(dstdir, info); err != nil {
+			return err
+		}
+	}
+
+	return
+}
+
+func onDirExists(srcdir string, dstdir string, opt Options) (bool, error) {
+	_, err := os.Stat(dstdir)
+	if err == nil && opt.OnDirExists != nil && dstdir != opt.intent.dst {
+		switch opt.OnDirExists(srcdir, dstdir) {
+		case Replace:
+			if err := os.RemoveAll(dstdir); err != nil {
+				return false, err
+			}
+		case Untouchable:
+			return true, nil
+		case Merge: // case "Merge" is default behaviour. Go through.
+		}
+	} else if err != nil && !os.IsNotExist(err) {
+		return true, err // Unwelcome error type...
+	}
+	return false, nil
+}
+
+func dcopySequential(srcdir string, dstdir string, contents []fs.FileInfo, opt Options) error {
+	for _, content := range contents {
+		cs := filepath.Join(srcdir, content.Name())
+		cd := filepath.Join(dstdir, content.Name())
+		if err := copyNextOrSkip(cs, cd, content, opt); err != nil {
+			return err // exit immediately if any error
+		}
+	}
+	return nil
+}
+
+func dcopyConcurrent(srcdir string, dstdir string, contents []fs.FileInfo, opt Options) error {
+	group, ctx := errgroup.WithContext(opt.intent.ctx)
+	getRoutine := func(cs, cd string, content os.FileInfo) func() error {
+		return func() error {
+			if content.IsDir() {
+				return copyNextOrSkip(cs, cd, content, opt)
+			}
+			if err := opt.intent.sem.Acquire(ctx, 1); err != nil {
+				return err
+			}
+			err := copyNextOrSkip(cs, cd, content, opt)
+			opt.intent.sem.Release(1)
+			return err
+		}
+	}
+	for _, content := range contents {
+		csd := filepath.Join(srcdir, content.Name())
+		cdd := filepath.Join(dstdir, content.Name())
+		group.Go(getRoutine(csd, cdd, content))
+	}
+	return group.Wait()
 }
 
 func onSymlink(src, dst string, opt Options) error {
