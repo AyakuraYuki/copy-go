@@ -14,6 +14,9 @@ import (
 
 // Copy copies src to dst, no matter if src is a file or a directory
 func Copy(src, dst string, opts ...Options) (err error) {
+	src = assureHomeDir(src)
+	dst = assureHomeDir(dst)
+
 	opt := assureOptions(src, dst, opts...)
 
 	if opt.NumOfWorkers > 1 {

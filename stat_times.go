@@ -1,4 +1,4 @@
-//go:build !darwin && !freebsd && !js && !linux && !netbsd && !openbsd && !solaris && !windows
+//go:build !darwin && !freebsd && !js && !linux && !netbsd && !openbsd && !plan9 && !solaris && !windows
 
 package copy_go
 
