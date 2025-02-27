@@ -1,5 +1,3 @@
-//go:build freebsd
-
 package copy_go
 
 import (

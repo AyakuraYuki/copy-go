@@ -1,5 +1,3 @@
-//go:build netbsd
-
 package copy_go
 
 import (

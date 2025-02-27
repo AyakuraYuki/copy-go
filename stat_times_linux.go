@@ -1,5 +1,3 @@
-//go:build linux
-
 package copy_go
 
 import (

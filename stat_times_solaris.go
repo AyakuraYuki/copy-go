@@ -1,5 +1,3 @@
-//go:build solaris
-
 package copy_go
 
 import (

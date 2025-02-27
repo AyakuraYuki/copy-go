@@ -1,5 +1,3 @@
-//go:build openbsd
-
 package copy_go
 
 import (
