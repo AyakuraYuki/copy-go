@@ -33,6 +33,9 @@ func ExampleOptions() {
 			return Skip
 		},
 		PermissionControl: AddPermission(0200),
+		NumOfWorkers:      2,
+		PreserveTimes:     true,
+		PreserveOwner:     true,
 	})
 	defer func() {
 		_ = os.RemoveAll(`test/data.copy`)
