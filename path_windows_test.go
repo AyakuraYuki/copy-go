@@ -17,7 +17,7 @@ func Test_expandHomeDir(t *testing.T) {
 		Path string
 		Want string
 	}{
-		{`%userprofile%\Music\mora`, fmt.Sprintf("%s/Music/mora", home)},
+		{`%userprofile%\Music\mora`, fmt.Sprintf(`%s\Music\mora`, home)},
 		{`C:\Users\Temp`, `C:\Users\Temp`},
 	}
 
@@ -38,7 +38,7 @@ func Test_assureHomeDir(t *testing.T) {
 		Path string
 		Want string
 	}{
-		{`%userprofile%\Music\mora`, fmt.Sprintf("%s/Music/mora", home)},
+		{`%userprofile%\Music\mora`, fmt.Sprintf(`%s\Music\mora`, home)},
 		{`C:\Users\Temp`, `C:\Users\Temp`},
 	}
 
