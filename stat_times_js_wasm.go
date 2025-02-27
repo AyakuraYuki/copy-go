@@ -10,7 +10,7 @@ func getTimeSpec(info os.FileInfo) timespec {
 	stat := info.Sys().(*syscall.Stat_t)
 	return timespec{
 		Mtime: info.ModTime(),
-		Atime: time.Unix(stat.Atim.Sec, stat.Atim.Nsec),
-		Ctime: time.Unix(stat.Ctim.Sec, stat.Ctim.Nsec),
+		Atime: time.Unix(stat.Atime, stat.AtimeNsec),
+		Ctime: time.Unix(stat.Ctime, stat.CtimeNsec),
 	}
 }
